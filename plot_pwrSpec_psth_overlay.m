@@ -106,6 +106,7 @@ end
 end % END (main function
 
 % % % Subroutine % % %
+% Sclae distribution "x" between "top" and "bot" values 
 function [new] = scaleValues(x,top,bot)
     if isinf(top) || isnan(top) || isinf(bot) || isnan(bot)
         disp('Check top/bottom for inf or nan')
@@ -114,5 +115,7 @@ function [new] = scaleValues(x,top,bot)
         bot = bot + abs(bot); top = top + abs(bot) ;
         new = bot +(x - min(x)) .* (top-bot) ./ (max(x)-min(x) );
         new = new + abs(bot) ;
+    else
+        new = bot +(x - min(x)) .* (top-bot) ./ (max(x)-min(x) );
     end
 end
