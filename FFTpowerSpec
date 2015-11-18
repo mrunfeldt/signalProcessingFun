@@ -1,0 +1,23 @@
+% Function to generate and plot power spectra from a time series
+% MJRunfeldt, 2011. Modified from Wim van Drongelen's "Signal Processing For Neuroscientists"
+
+function [f,pwrSpec] = FFTpowerSpec(data,framerate)
+
+srate = framerate; %framerate in seconds!
+pt = size(data,2);   % # of samples in recording
+pt = 2^(floor(log2(pt)));
+range = pt/2;
+
+%t = 0:1/srate:pt;
+f = srate*(0:range-1)/pt;
+
+Y = fft(data,pt);
+pwrSpec = Y.*conj(Y)/pt;
+ 
+figure;
+plot(f,pwrSpec(1:range));
+xlim([f(3) max(f)]);
+title('FFT PWR Spectrum');
+xlabel('Frequency(Hz)'); ylabel('Pwr(mV^2)');
+
+end
