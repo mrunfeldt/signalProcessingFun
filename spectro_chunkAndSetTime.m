@@ -19,6 +19,7 @@
 
 function [psd, time, f, varargout] = spectro_chunkAndSetTime(signal, sRate, tres, varargin)
 % Full Input: (signal, sRate, tres, chunkSize, olap, Nfft, faxis, noPlot)
+%             (signal, sRate, tres, chunkSize, olap, Nfft, faxis, plotMe);
 
 dur = length(signal) ; % count of signal samples
 binSize = round(tres * sRate) ; % # of samples (@sRate res) for each time bin in spectrogram
@@ -41,7 +42,7 @@ else % "chunkSize" was provided
 end
 
 if  nargin < 5 % "chunkSize" was provided. "olap" was not
-    olap = binSize*2 ; % # of time samples of overlap
+    olap = binSize/2 ; % # of time samples of overlap
 else olap = ceil(varargin{2}*sRate) ;
 end
 
@@ -51,8 +52,12 @@ end
 % % VIP for controlling output temporal resoltion % %
 window =  round( (dur - olap) / (dur/binSize) + olap ) ; 
 
+if window > chunk_size; 
+    disp(['Increase chunkSize and/or decrease olap: window = ',num2str(window), ' chunk_size = ',num2str(chunk_size)]);end
+
 if nargin < 7 
 % NO "faxis" provided - let "spectrogram" provide frequency axis
+disp('yo')
     psd = []; time = []; tCount = 0;
     for k = 1:length(chunks)-1 % % % Calculate Spectrogram in Chunks % % % 
         tSeries = signal(chunks(k):chunks(k+1)+1) ; 
@@ -87,5 +92,5 @@ if strcmp(pltComm,'yesPlot')
     colormap(jet); colorbar
     xlabel('Time (sec)');ylabel(fLabel)
     ylim([min(yVals) max(yVals)]);xlim([time(1) time(end)])
-    varargout{1} = fH ;
+    varargout{1} = fH ; drawnow
 end
