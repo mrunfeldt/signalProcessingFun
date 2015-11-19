@@ -71,7 +71,7 @@ else
 % Use "faxis" for frequency range % % 
 faxis = varargin{4} ; 
     psd = []; time = []; tCount = 0;
-    for k = 1:length(chunks)-1% % % Calculate Spectrogram in Chunks % % % 
+    for k = 1:length(chunks)-1% % % Calculate Spectrogram in Chunks % % % %
         tSeries = signal(chunks(k):chunks(k+1)+1) ; 
         [~,f,t,pwrD] = spectrogram(tSeries,window,olap,faxis,sRate); 
         psd = [psd pwrD] ; time = [time t+tCount] ; % grow spectrogram PSD and Time
@@ -81,16 +81,21 @@ faxis = varargin{4} ;
     end % END (k) produce spectrogram with provided "faxis"
 end
 
+psd = 10*log10(psd) ; % POWER IN dB/Hz !
+
 % % Determine if "noPlot" was requested % % 
 if nargin == 8; pltComm = varargin{5}; else pltComm = 'yesPlot' ; end
 
 if strcmp(pltComm,'yesPlot')
-    spec=10*log10(psd);yVals = log10(f);
+    yVals = log10(f);  yLab = 10.^yVals ;
+    yTic = round(linspace(1,length(f),7)) ;
+    if yTic(end) ~=length(f);yTic = [yTic length(f)];end
     
-    fH = figure;
-    surf(time,yVals,spec,'edgecolor','none');view(0,90); 
-    colormap(jet); colorbar
-    xlabel('Time (sec)');ylabel(fLabel)
+    fH = figure; title('10*log10(power)')
+    surf(time,yVals,psd,'edgecolor','none');view(0,90); 
+    colormap(jet); cH=colorbar;ylabel(cH,' Power / Frequency (dB/Hz)')
+    xlabel('Time (sec)');ylabel('Frequency (Hz)')
+    set(gca,'ytick',yVals(yTic),'yticklabel',round(yLab(yTic)))
     ylim([min(yVals) max(yVals)]);xlim([time(1) time(end)])
     varargout{1} = fH ; drawnow
 end
