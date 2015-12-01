@@ -1,0 +1,125 @@
+
+% Reads a wav file and generates spectrogram, saved as a binary(float32)
+% Opens wav file and processes spectrogram in chunks to minimize memory
+
+% Use "loadSprSpec" function to load saved spectrogram
+
+% MJRunfeldt 2015_11_23. Modified from J.Shih's "wav2spr" function
+
+function [] = sprSpec_fromWav(wavpath,faxis,tres)
+% % Extract Information About wav file % % 
+    info = audioinfo(wavpath);
+    fs = info.SampleRate; % sampling rate
+    nsamples = info.TotalSamples ; % total number of samples
+
+% % PARAMETERS % % %
+    blocksize = 1 * fs; % number of seconds at a time to read wav file
+    nzero = [0 0]; % 
+
+%Correcting number of samples
+    nsamples = nsamples - sum(nzero);    
+    
+%Setting spectrogram parameters
+    window = hamming(round(4*fs/min(faxis))); %Hamming window is 4x the length of the longest period
+    nooverlap = round(length(window) - tres*fs); %matching spectrogram time resolution to STRF time resolution
+    freq = faxis(faxis < fs/2); %amplitudes at frequencies too high for WAV sampling rate will be set to 0
+    nfreq0 = length(faxis) - length(freq);
+    nbuff = [floor((length(window)-1)/2) ceil((length(window)-1)/2)];
+    nblocks = ceil(nsamples/blocksize); %number of blocks in the .wav file
+
+
+%Creating file paths;
+    wavpath = strtrim(wavpath);
+    sprpath = [wavpath(1:(end-4)) '.spr'];
+    parampath = [wavpath(1:(end-4)) '_param.mat'];
+    
+    startbuff = zeros(nbuff(1),1);
+    fid_spr = fopen(sprpath,'w');
+    
+taxis = []; tCount = 0;    
+    for block = 1:nblocks
+        
+   %Loading block of WAV data
+        ind_samples = (block-1)*blocksize + [1 (blocksize + nbuff(2))]  ;
+
+        if(ind_samples(2) > nsamples) %if we've reached the end of the file
+            wavdata = audioread(wavpath,[ind_samples(1) nsamples] + nzero(1));
+            wavdata = wavdata(:,1); % First channel is signal
+            wavdata = [startbuff; wavdata; zeros(nbuff(2),1)];
+        else
+            wavdata = audioread(wavpath,ind_samples + nzero(1));
+            wavdata = wavdata(:,1); % First channel is signal
+            wavdata = [startbuff; wavdata];
+        end
+    
+        %Calculating spectrogram for block
+        [~,f,t,specdata] = spectrogram(wavdata,window,nooverlap,freq,fs);
+        taxis = [taxis t+tCount - t(1)] ; % grow spectrogram PSD and Time
+        tCount = tCount + t(end) - t(1) ; % internal count for chunks
+
+% % % Option to Plot % % %    
+%         psd = 10*log10(specdata) ; % POWER IN dB/Hz !
+%         yVals = log10(f);  yLab = 10.^yVals ;
+%         yTic = round(linspace(1,length(f),7)) ;
+%         if yTic(end) ~=length(f);yTic = [yTic length(f)];end
+%         fH = figure; title('10*log10(power)')
+%         surf(t,yVals,psd,'edgecolor','none');view(0,90); 
+%         colormap(jet); cH=colorbar;ylabel(cH,' Power / Frequency (dB/Hz)')
+%         xlabel('Time (sec)');ylabel('Frequency (Hz)')
+%         set(gca,'ytick',yVals(yTic),'yticklabel',round(yLab(yTic)))
+%         ylim([min(yVals) max(yVals)]);xlim([t(1) t(end)])
+%         drawnow; pause;close%return
+% % % % %        
+
+
+        %Adding zeros for higher frequencies not included in spectrogram
+        %analysis
+        specdata = [specdata; zeros(nfreq0,size(specdata,2))];
+        
+        %Writing spectrogram data to output file
+        fwrite(fid_spr,abs(specdata),'float');
+        %disp('not writing')
+        
+        %Updating buffer
+        startbuff = wavdata((end-nbuff(2)-(nbuff(1)-1)):(end-nbuff(2)));
+        
+        %Updating progress
+            fprintf('Finished converting block %d of %d.\n',block,nblocks);
+
+    end % END Blocks
+    
+    taxis = taxis + mode(diff(t)); 
+    
+% % Setting parameters and saving to parameter file
+    DF = length(window) - nooverlap;
+    %Closing .spr file
+    fclose(fid_spr);
+
+    save(parampath,'faxis','taxis','DF');
+end
+   
+
+% % Loading function % % % 
+% function [spectro,t_vec,faxis] = loadSprSpec(specPath,blocksize)
+% sprtype = 'float';
+% 
+% ind = findstr(specPath,'.spr');
+% parampath = [specPath(1:ind(1)-1) '_param.mat'];
+% load(parampath); % load params saved
+% t_vec = taxis ; NF = length(faxis);
+% 
+% if nargin<2
+%  blocksize = 1e5 ; % Number of samples to load at once
+% end
+% 
+% spectro = []; % initialize output
+% 
+% 
+% fid = fopen(specPath); frewind(fid); % Read file
+% fprintf('Loading spectrogram . . . ');
+% while ~feof(fid)    
+%     spectro = [spectro fread(fid,[NF blocksize],sprtype)];
+% end
+% fprintf('Fini. ');
+% fclose(fid);
+% end
