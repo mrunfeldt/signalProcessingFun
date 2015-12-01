@@ -1,0 +1,27 @@
+% Loads binary file containing spectrogram 
+% use with "sprSpec_fromWav"
+% MJRunfeldt 2015_11_23
+
+function [spectro,t_vec,faxis] = loadSprSpec(specPath,blocksize)
+sprtype = 'float';
+
+ind = findstr(specPath,'.spr');
+parampath = [specPath(1:ind(1)-1) '_param.mat'];
+load(parampath); % load params saved
+t_vec = taxis ; NF = length(faxis);
+
+if nargin<2
+ blocksize = 1e5 ; % Number of samples to load at once
+end
+
+spectro = []; % initialize output
+
+
+fid = fopen(specPath); frewind(fid); % Read file
+fprintf('Loading spectrogram . . . ');
+while ~feof(fid)    
+    spectro = [spectro fread(fid,[NF blocksize],sprtype)];
+end
+fprintf('Fini. ');
+fclose(fid);
+end
