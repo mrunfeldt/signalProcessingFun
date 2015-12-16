@@ -1,0 +1,108 @@
+
+% Uses gammatone filter to create spectrogram from timeseries, mimicking
+% the filtering process of the human cochlea.
+
+% INPUTs: (1) path to .wav file with a single channel (i.e. no ttls) (2)
+% path where output data will be saved - include file path and the basis
+% for filename. The function will save the spectrogram as an .spr file and
+% a parameter -m file with the time and frequency axes. % % Inputs 3-8 are
+% parameters for cochleagram function % % % (3) lowcf in Hz (4) highcf in Hz 
+% (5) number of spectral bins (6) temporal resolution (ms) (7)
+% compression type (e.g. 'log') (8) frameshift for cochleagram
+
+% OUTPUT: saved .spr file (use "loadSprSpec" to load) and param file -
+% frequecy is in Hz and time is in seconds
+
+% % Requires "makeRateMap_c" written in C and compiled in MATLAB
+% source: http://staffwww.dcs.shef.ac.uk/people/N.Ma/resources/ratemap/#Bro1994
+
+% MJRunfeldt 2015_12_15
+
+function [] = wav2cochleagram(wavPath,savePath,...
+                                lowcf,highcf,nFreqs,tRes,compression,frameshift)
+
+sprpath = [savePath '.spr']; parampath = [savePath '_param.mat']; % save paths
+
+info = audioinfo(wavPath); % info about signal file
+fs = info.SampleRate; % sampling rate
+nsamples = info.TotalSamples ; % total number of samples
+blocksize = 2 * fs; % number of seconds at a time to read wav file
+if info.NumChannels > 1; 
+    disp('Too many channels in .wav file. Only using the first');
+end
+
+nbuff = ceil((1/lowcf*4*fs) / (tRes*1e-3*fs)) * (tRes*1e-3*fs) ; % buffer ends of chunks
+buff = nbuff / (tRes*1e-3*fs) ;  % buffer in spectrogram frames
+startbuff = zeros(nbuff,1);
+nblocks = ceil(nsamples/blocksize); % number of blocks in the .wav file
+faxis=logspace(log10(lowcf),log10(highcf),nFreqs) ; % actual axis values
+
+fid_spr = fopen(sprpath,'w'); % initialize output
+
+taxis = []; tCount = 0; all=[];
+for block = 1:nblocks
+
+% % % % % % Loading block of WAV data % % % % % %
+    ind_samples = (block-1)*blocksize + [1 (blocksize + nbuff)]  ;
+    if(ind_samples(2) > nsamples) %if we've reached the end of the file
+        wavdata = audioread(wavPath,[ind_samples(1) nsamples]);
+        wavdata = wavdata(:,1); % First channel is signal
+        wavdata = [startbuff; wavdata; zeros(nbuff,1)];
+    else
+        wavdata = audioread(wavPath,ind_samples);
+        wavdata = wavdata(:,1); % First channel is signal
+        wavdata = [startbuff; wavdata];
+    end
+        
+    specRaw = makeRateMap_c(wavdata,fs,lowcf,highcf,nFreqs,frameshift,tRes,compression);
+    spec = specRaw(:,buff+1:end-buff); % remove buffered ends
+    all=[all spec];
+    
+    t = [0:length(spec)-1].* tRes*1e-3 ; % in seconds
+    taxis = [taxis t+tCount - t(1)] ; % grow spectrogram PSD and Time
+    tCount = tCount + t(end) + (tRes*1e-3) ; % internal count for chunks
+    
+    % % % Write spectrogram to output file % % % 
+    fwrite(fid_spr,spec,'float');
+
+    % % % Update Buffer for next block % % % 
+    startbuff = wavdata(end-nbuff+1:end) ;
+
+    % % % Display Progress
+    fprintf('Finished converting block %d of %d.\n',block,nblocks);    
+
+end % END (block)
+
+fclose(fid_spr);
+save(parampath,'faxis','taxis'); % save time and frequency axes
+
+end % END main function
+
+
+
+% % % % This function can be used to load saved results % % %
+% % Loads binary file containing spectrogram 
+% % MJRunfeldt 2015_11_23
+% function [spectro,t_vec,faxis] = loadSprSpec(specPath,blocksize)
+% sprtype = 'float';
+% 
+% ind = findstr(specPath,'.spr');
+% parampath = [specPath(1:ind(1)-1) '_param.mat'];
+% load(parampath); % load params saved
+% t_vec = taxis ; NF = length(faxis);
+% 
+% if nargin<2
+%  blocksize = 1e5 ; % Number of samples to load at once
+% end
+% 
+% spectro = []; % initialize output
+% 
+% 
+% fid = fopen(specPath); frewind(fid); % Read file
+% fprintf('Loading spectrogram . . . ');
+% while ~feof(fid)    
+%     spectro = [spectro fread(fid,[NF blocksize],sprtype)];
+% end
+% fprintf('Fini. ');
+% fclose(fid);
+% end
